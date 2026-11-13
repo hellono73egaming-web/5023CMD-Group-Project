@@ -1,0 +1,56 @@
+# ==================================================================
+#  GNN-PPO Logistics Agent - configuration (5023CMD CW2, Task 2)
+#  Every number used by the code lives here so it can be justified.
+# ==================================================================
+
+seed: 42
+
+environment:              # simulated regional delivery network
+  n_nodes: 12             # warehouses, suppliers, hubs, customers
+  k_neighbours: 3         # each node is linked to its 3 nearest nodes
+  legs_per_episode: 3     # decision points per shipment
+  # --- Task 1 uncertainty sources, randomised per episode (domain randomisation)
+  gps_noise_std: [0.4, 1.2]          # 1.2.1 noisy sensors (hours of apparent lateness)
+  sensor_drift: [-0.10, 0.10]        # 1.2.1 cold-chain temperature sensor drift
+  supplier_missing_prob: [0.2, 0.5]  # 1.2.2 incomplete external data
+  driver_ignore_prob: [0.1, 0.4]     # 1.2.3 unpredictable human intervention
+  tool_fail_prob: [0.05, 0.20]       # 1.2.4 tool / API execution failure
+  cold_chain_share: 0.4              # share of shipments that are refrigerated
+  max_repeat_reroutes: 3             # loop-trap detector: halt after N reroutes
+
+reward:                   # shaped reward (Section 2.2)
+  on_time: 1.0            # delivered within 0.5 h of promise
+  delay_per_hour: -0.5    # per hour late
+  cold_chain_violation: -2.0
+  tool_call: -0.1         # every reroute / expedite / escalate call
+  expedite_premium: -0.4  # premium carrier is expensive
+  supervisor_approval: 0.2   # simulated supervisor agrees with the action
+  loop_trap_penalty: -1.0    # repeated-state / loop detection
+
+model:
+  gnn_hidden: 16          # node embedding size (1 message-passing layer)
+  mlp_hidden: 64          # policy and value head width
+  n_actions: 4            # hold, reroute, expedite, escalate
+
+ppo:
+  total_steps: 300000     # environment steps (CPU prototype)
+  learning_rate: 3.0e-4   # Adam, linearly decayed to 0
+  lr_linear_decay: true
+  rollout_steps: 4096     # steps collected per update
+  minibatch_size: 256
+  epochs: 10              # passes over each rollout
+  gamma: 0.99             # discount factor
+  gae_lambda: 0.95        # generalised advantage estimation
+  clip_epsilon: 0.2       # PPO clipping range
+  value_coef: 0.5
+  entropy_coef: 0.01      # keeps the policy exploring
+  max_grad_norm: 0.5      # gradient clipping
+
+experiments:              # sweeps reported in Section 2.2
+  sweep_steps: 150000
+  lr_sweep: [1.0e-3, 3.0e-4, 1.0e-4]
+  minibatch_sweep: [64, 256, 512]
+
+evaluation:
+  episodes: 3000
+  unseen_n_nodes: 16      # larger, never-seen network layouts (generalisation test)
